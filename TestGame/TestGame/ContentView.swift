@@ -8,7 +8,20 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.safeAreaInsets) private var safeAreaInsets
+    
     @StateObject var viewModel = ContentViewModel()
+    
+    private var topViewHeight: CGFloat = 300
+    private var bottomViewHeight: CGFloat = 100
+    
+    var topYBallOffset: CGFloat {
+        topViewHeight + safeAreaInsets.top - viewModel.ballDiameter - viewModel.screenSize.height / 2
+    }
+    
+    var bottomYBallOffset: CGFloat {
+        viewModel.screenSize.height / 2 - bottomViewHeight - safeAreaInsets.bottom + viewModel.ballDiameter
+    }
     
     var body: some View {
         ZStack {
@@ -18,17 +31,16 @@ struct ContentView: View {
             
             ZStack {
                 ForEach(viewModel.models, id: \.self) { model in
-                    VStack {
-                        Button {
-                            viewModel.updateState(for: model.id, isAnimating: false)
-                            print("Tap id = \(model.id)")
-                        } label: {
-                            Circle()
-                                .foregroundColor(model.color)
-                                .frame(height: 50)
-                        }
-                    }
-                    .offset(x: model.offset, y: viewModel.getObject(for: model.id) ? 150 : -150)
+                    Circle()
+                        .foregroundColor(model.color)
+                        .frame(height: viewModel.ballDiameter)
+                        .offset(x: model.offset, y: viewModel.getState(for: model.id) ? bottomYBallOffset : topYBallOffset)
+                        .simultaneousGesture(
+                          TapGesture()
+                              .onEnded { _ in
+                                  viewModel.ballTapped(model: model)
+                              }
+                         )
                 }
             }
             
@@ -36,62 +48,88 @@ struct ContentView: View {
                 ZStack {
                     Rectangle()
                         .foregroundColor(.white)
+                        .ignoresSafeArea()
                     
                     VStack {
-                        Text("Round 1")
+                        Text("Round \(viewModel.currentRound) of \(viewModel.maxRounds)")
                             .padding(.top, 10)
+                            .foregroundColor(.black)
                         
                         HStack {
-                            Text("Collected: 0 of 5")
+                            VStack(alignment: .leading) {
+                                Text("Collected: \(viewModel.currentPoints) of \(viewModel.maxPoints)")
+                                    .foregroundColor(.black)
+                                
+                                Text("Lives available: \(viewModel.availableLives)")
+                                    .foregroundColor(.black)
+                            }
                             
                             Spacer()
-                        }
-                        
-                        HStack {
-                            Text("Lives available: 2")
                             
-                            Spacer()
+                            Button {
+                                viewModel.onStart()
+                            } label: {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .foregroundColor(.blue)
+                                    
+                                    Text(viewModel.isGameOver
+                                         ? "Restart"
+                                         : "Start")
+                                        .foregroundColor(.white)
+                                }
+                                .frame(width: 90, height: 40)
+                                .opacity(viewModel.isGameInProcess ? 0 : 1)
+                            }
                         }
+                        .padding(.top, 10)
                         
                         Text("TARGET")
                             .padding(.top, 10)
+                            .foregroundColor(.black)
                         
                         Circle()
-                            .foregroundColor(.red)
-                            .frame(height: 50)
+                            .foregroundColor(viewModel.roundColor)
+                            .frame(height: viewModel.ballDiameter)
                         
-                        Text("00:13")
-                            .padding(.top, 10)
+                        Text(viewModel.roundTimeLeft > 9
+                             ? "00:\(viewModel.roundTimeLeft)"
+                             : "00:0\(viewModel.roundTimeLeft)")
+                        .foregroundColor(.black)
+                        .padding(.top, 10)
+                        
+                        Spacer()
                     }
                     .padding(.horizontal, 20)
                 }
-                .frame(height: 300)
+                .frame(height: topViewHeight)
                 
                 Spacer()
-//                    .allowsHitTesting(false)
                 
-                Rectangle()
-                    .foregroundColor(.white)
-                    .frame(height: 100)
+                ZStack {
+                    Rectangle()
+                        .foregroundColor(.white)
+                        .ignoresSafeArea()
+                    
+                    VStack {
+                        if viewModel.isGameOver {
+                            Text(viewModel.isWin
+                                 ? "You win!"
+                                 : "Game over")
+                                .font(.system(size: 20, weight: .black))
+                                .foregroundColor(.black)
+                                .padding(.top, 10)
+                            
+                            Spacer()
+                        }
+                    }
+                }
+                .frame(height: bottomViewHeight)
             }
-            .ignoresSafeArea()
-        }
-        .onAppear() {
-            viewModel.onAppear()
         }
     }
 }
 
 #Preview {
     ContentView()
-}
-
-extension Range where Bound: FixedWidthInteger {
-    var random: Bound { .random(in: self) }
-    func random(_ n: Int) -> [Bound] { (0..<n).map { _ in random } }
-}
-
-extension ClosedRange where Bound: FixedWidthInteger  {
-    var random: Bound { .random(in: self) }
-    func random(_ n: Int) -> [Bound] { (0..<n).map { _ in random } }
 }
